@@ -1,0 +1,4 @@
+visual_genome
+torch
+torchvision
+numpy
