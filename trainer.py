@@ -1,6 +1,9 @@
+import torch
+from src.DRGG_model import DRGGModel
 from visual_gm_data import loader
 from src import DRGG_model
-from datasets import load_dataset
+from torch.utils.tensorboard import SummaryWriter
+
 
 def unit_test():
     # print('Running data loader test...')
@@ -34,9 +37,38 @@ def unit_test():
     print(f'{i} Unit tests passed.')
 
 def train():
-    raise NotImplementedError
-    # Training code here
+    state_dict = torch.load('model/model.pth')
 
+    # load the model from state_dict
+    model = DRGGModel()
+    model.load_state_dict(state_dict)
+
+    optimizer = torch.optim.AdamW(model.parameters, lr=1e-4, weight_decay=5e-3, betas=(0.9, 0.999), eps=1e-8)
+    optimizer.load_state_dict(state_dict['optimizer'])
+
+    criterion = torch.nn.CrossEntropyLoss()
+
+    # load the dataset
+    #batch size is 4
+    objects_dataset = loader.load_visual_genome_objects_data()
+    relations_dataset = loader.load_visual_genome_relations_data()
+
+    for epoch in range(10):
+        for objects_batch, relations_batch in zip(objects_dataset, relations_dataset):
+            optimizer.zero_grad()
+            object_preds, relation_preds = model(objects_batch, relations_batch)
+            obj_loss = criterion(object_preds, objects_batch['labels'])
+            rel_loss = criterion(relation_preds, relations_batch['labels'])
+            loss = obj_loss + rel_loss
+            loss.backward()
+            optimizer.step()
+            print(f"Epoch {epoch+1}, Loss: {loss.item()}")
+            # save the model
+            torch.save({
+                'model': model.state_dict(),
+                'optimizer': optimizer.state_dict()
+            }, 'model/model.pth')
 if __name__ == "__main__":
     unit_test()
+    train()
 

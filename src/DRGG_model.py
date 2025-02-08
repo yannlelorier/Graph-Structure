@@ -108,10 +108,8 @@ class RelationAggregator(nn.Module):
         # Compute softmax over the alphas
         alpha_weights = F.softmax(self.alphas, dim=0)  # (num_layers,)
 
-        # Weighted sum of relation head outputs
         weighted_sum = sum(alpha * output for alpha, output in zip(alpha_weights, relation_outputs))
 
-        # Final transformation
         return self.mlp_g(weighted_sum)
 
 class DRGGModel(nn.Module):

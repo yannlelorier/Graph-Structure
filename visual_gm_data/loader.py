@@ -95,12 +95,12 @@ def pad_collate_fn_rels(batch):
         "relationships": padded_relationships,  # Padded tensor
     }
 
-def load_visual_genome_objects_data(batch_size=32, shuffle=True, split='train', num_workers=4, transform=None):
+def load_visual_genome_objects_data(batch_size=4, shuffle=True, split='train', num_workers=4, transform=None):
     objects = VisualGenomeObjectsDataset(split=split, transform=transform)
     dataloader = DataLoader(objects, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=pad_collate_fn_objs)
     return dataloader
 
-def load_visual_genome_relations_data(batch_size=32, shuffle=True, split='train', num_workers=4, transform=None):
+def load_visual_genome_relations_data(batch_size=4, shuffle=True, split='train', num_workers=4, transform=None):
     relationships = VisualGenomeRelationsDataset(split=split, transform=transform)
     dataloader = DataLoader(relationships, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=pad_collate_fn_rels)
     return dataloader
