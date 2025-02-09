@@ -114,7 +114,7 @@ class RelationAggregator(nn.Module):
 
 class DRGGModel(nn.Module):
     """End-to-End Model integrating all components"""
-    def __init__(self):
+    def __init__(self, num_queries=100):
         super().__init__()
         self.backbone = Backbone()
         self.encoder = Encoder()
@@ -123,10 +123,12 @@ class DRGGModel(nn.Module):
         self.aggregator = RelationAggregator()
         self.object_heads = nn.Linear(256, 10)  # Example output classes for layout objects
 
-    def forward(self, image, object_queries):
+        self.object_queries = nn.Parameter(torch.randn(num_queries, 1, 256))
+
+    def forward(self, image):
         features = self.backbone(image)
         encoded_features = self.encoder(features.unsqueeze(0))  # Add sequence dimension
-        decoder_outputs = self.decoder(object_queries, encoded_features)
+        decoder_outputs = self.decoder(self.object_queries, encoded_features)
 
         # Apply Relation Heads to each decoder output
         relation_outputs = [self.relation_heads(output) for output in decoder_outputs]

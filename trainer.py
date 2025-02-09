@@ -1,7 +1,7 @@
 import torch
 from src.DRGG_model import DRGGModel
 from visual_gm_data import loader
-from src import DRGG_model
+from visual_gm_data.loader import ImageTransforms
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -15,18 +15,32 @@ def unit_test():
     # print('Unit test passed')
 
     print('Running one pass over the network to check if this thing works...')
-    #print('init model...')
-    #model = DRGG_model.DRGGModel()
+    print('init a model from scratch...')
+    model = DRGGModel()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=5e-3, betas=(0.9, 0.999), eps=1e-8)
+    obj_loss = torch.nn.CrossEntropyLoss()
+    rel_loss = torch.nn.BCEWithLogitsLoss()
     print('init data loader...')
-    objects_dl, _ = loader.test_loader_with_small_dataset()
+    dataloader = loader.test_loader_with_small_dataset()
 
     i = 0
-    print('running one pass over the network...')
-    for batch in objects_dl:
-        print(batch)
+    print('Testing forward pass over the network...')
+    import ipdb; ipdb.set_trace()
+    for objects, relations, images in dataloader:
+        optimizer.zero_grad()
+        print('Batch:\n------\tObjects:', objects, '\n------\tRelations:', relations, '\n------\tImages:', images)
+        obj_preds, relation_preds = model(images)
+        object_loss = obj_loss(obj_preds, objects)
+        relations_loss = rel_loss(relation_preds, relations)
+        loss = object_loss + relations_loss
+        print(f'Loss: {loss.item()}')
+        print('Testing backward pass over the network...')
+        loss.backward()
+        optimizer.step()
+
         try:
-            assert len(batch) == 2
-            assert 'relationships' in batch or 'objects' in batch
+            assert len() == 2
+            assert 'relationships' in relations or 'objects' in objects
             i += 1
             if i == 2:
                 break
@@ -46,19 +60,24 @@ def train():
     optimizer = torch.optim.AdamW(model.parameters, lr=1e-4, weight_decay=5e-3, betas=(0.9, 0.999), eps=1e-8)
     optimizer.load_state_dict(state_dict['optimizer'])
 
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion_obj = torch.nn.CrossEntropyLoss()
+    criterion_rels = torch.nn.BCEWithLogitsLoss()
 
-    # load the dataset
     #batch size is 4
-    objects_dataset = loader.load_visual_genome_objects_data()
-    relations_dataset = loader.load_visual_genome_relations_data()
+    # load the dataset
+    transforms = ImageTransforms()
+    dataloader = loader.load_visual_genome_data(transform=transforms)
+
+    model.train()
 
     for epoch in range(10):
-        for objects_batch, relations_batch in zip(objects_dataset, relations_dataset):
+        for objects_batch, relations_batch, images_batch in dataloader:
             optimizer.zero_grad()
-            object_preds, relation_preds = model(objects_batch, relations_batch)
-            obj_loss = criterion(object_preds, objects_batch['labels'])
-            rel_loss = criterion(relation_preds, relations_batch['labels'])
+            
+            obj_preds, relation_preds = model(images_batch)
+            
+            obj_loss = criterion_obj(obj_preds, objects_batch)
+            rel_loss = criterion_rels(relation_preds, relations_batch)
             loss = obj_loss + rel_loss
             loss.backward()
             optimizer.step()
@@ -70,5 +89,4 @@ def train():
             }, 'model/model.pth')
 if __name__ == "__main__":
     unit_test()
-    train()
-
+    #train()
