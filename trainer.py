@@ -4,14 +4,6 @@ from visual_gm_data import loader
 from visual_gm_data.loader import ImageTransforms
 from torch.utils.tensorboard import SummaryWriter
 
-
-
-from src.DRGG_model import DRGGModel  
-from visual_gm_data.loader import get_data_loader  
-from torch.utils.tensorboard import SummaryWriter  
-import torch
-
-
 def unit_test():
     # print('Running data loader test...')
     # dataloader = loader.test_loader_with_small_dataset()
@@ -33,7 +25,12 @@ def unit_test():
     i = 0
     print('Testing forward pass over the network...')
     import ipdb; ipdb.set_trace()
-    for objects, relations, images in dataloader:
+    for batch in dataloader:
+        images = batch["images"]
+        image_ids = batch["image_ids"]
+        objects = batch["objects"]
+        relations = batch["relationships"]
+
         optimizer.zero_grad()
         print('Batch:\n------\tObjects:', objects, '\n------\tRelations:', relations, '\n------\tImages:', images)
         obj_preds, relation_preds = model(images)
