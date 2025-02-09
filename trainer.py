@@ -1,35 +1,38 @@
 import torch
 from src.DRGG_model import DRGGModel
 from visual_gm_data import loader
-from visual_gm_data.loader import ImageTransforms
 from torch.utils.tensorboard import SummaryWriter
+import logging
+from logger.my_logger import CustomFormatter
+
+#logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+ch.setFormatter(CustomFormatter())
+logger.addHandler(ch)
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def unit_test():
-    # print('Running data loader test...')
-    # dataloader = loader.test_loader_with_small_dataset()
-    # import ipdb; ipdb.set_trace()
-    # for i, data in enumerate(dataloader):
-    #     print(f"Batch {i+1}: {data}")
-
-    # print('Unit test passed')
-
-    print('Running one pass over the network to check if this thing works...')
-    print('init a model from scratch...')
-    model = DRGGModel()
+    logger.info('Running one pass over the network to check if this thing works...')
+    logger.info('init a model from scratch...')
+    model = DRGGModel().to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=5e-3, betas=(0.9, 0.999), eps=1e-8)
     obj_loss = torch.nn.CrossEntropyLoss()
     rel_loss = torch.nn.BCEWithLogitsLoss()
-    print('init data loader...')
+    logger.info('init data loader...')
     dataloader = loader.test_loader_with_small_dataset()
 
     i = 0
-    print('Testing forward pass over the network...')
-    import ipdb; ipdb.set_trace()
+    logger.info('Testing forward pass over the network...')
+    #import ipdb; ipdb.set_trace()
     for batch in dataloader:
         images = batch["images"]
         image_ids = batch["image_ids"]
         objects = batch["objects"]
         relations = batch["relationships"]
+        import ipdb; ipdb.set_trace()
 
         optimizer.zero_grad()
         print('Batch:\n------\tObjects:', objects, '\n------\tRelations:', relations, '\n------\tImages:', images)
@@ -41,6 +44,7 @@ def unit_test():
         print('Testing backward pass over the network...')
         loss.backward()
         optimizer.step()
+        break
 
         try:
             assert len() == 2
@@ -55,12 +59,23 @@ def unit_test():
     print(f'{i} Unit tests passed.')
 
 def train():
-    state_dict = torch.load('model/model.pth')
+    try:
+        state_dict = torch.load('model/model.pth')
+    except FileNotFoundError:
+        logger.warning('Model not found, creating a new model...')
+        state_dict = None
+
+    if state_dict is not None:
+        print('Loading model from state_dict...')
+        state_dict = torch.load('model/model.pth')
+    else:
+        print('Creating a new model...')
 
     # load the model from state_dict
     model = DRGGModel()
     model.load_state_dict(state_dict)
-
+    
+    #As stated in the paper, the optimizer is AdamW wih the following params
     optimizer = torch.optim.AdamW(model.parameters, lr=1e-4, weight_decay=5e-3, betas=(0.9, 0.999), eps=1e-8)
     optimizer.load_state_dict(state_dict['optimizer'])
 
@@ -69,11 +84,12 @@ def train():
 
     #batch size is 4
     # load the dataset
+    # this doesnt work
     transforms = ImageTransforms()
+    #change this too
     dataloader = loader.load_visual_genome_data(transform=transforms)
 
     model.train()
-
     for epoch in range(10):
         for objects_batch, relations_batch, images_batch in dataloader:
             optimizer.zero_grad()
