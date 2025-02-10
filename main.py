@@ -5,7 +5,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from datasets.vg_dataset import VGDatasetH5, vg_collate_fn
-from models.sgg_model import MyRelModelDRGG
+from models.drgg_model import MyRelModelDRGG
 from training.train import train_model
 
 def main():

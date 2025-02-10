@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
 
-from models.sgg_model import MyRelModelDRGG
+from models.drgg_model import MyRelModelDRGG
 
 def load_model(checkpoint_path, device):
     """
