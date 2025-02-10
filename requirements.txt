@@ -1,0 +1,6 @@
+torch
+torchvision
+h5py
+matplotlib
+numpy
+pillow

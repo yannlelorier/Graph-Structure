@@ -1,0 +1,25 @@
+{
+  "dataset": {
+    "h5_file": "../data/VG-SGG.h5",
+    "image_dir": "../data/VG_100K",
+    "image_size": [256, 256],
+    "obj_label2id_file": "../data/VG-SGG-dicts.json"
+  },
+  "model": {
+    "num_obj_classes": 151,
+    "num_rel_classes": 50,
+    "hidden_dim": 256,
+    "mode": "sgdet",
+    "use_bias": true,
+    "test_bias": false,
+    "num_layers": 3,
+    "roi_size": 7
+  },
+  "training": {
+    "num_epochs": 5,
+    "batch_size": 2,
+    "learning_rate": 0.0001,
+    "checkpoint_interval": 1000,
+    "num_workers": 4
+  }
+}
