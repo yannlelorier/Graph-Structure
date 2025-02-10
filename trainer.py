@@ -26,13 +26,12 @@ def unit_test():
 
     i = 0
     logger.info('Testing forward pass over the network...')
-    #import ipdb; ipdb.set_trace()
+    import ipdb; ipdb.set_trace()
     for batch in dataloader:
         images = batch["images"]
         image_ids = batch["image_ids"]
         objects = batch["objects"]
         relations = batch["relationships"]
-        import ipdb; ipdb.set_trace()
 
         optimizer.zero_grad()
         print('Batch:\n------\tObjects:', objects, '\n------\tRelations:', relations, '\n------\tImages:', images)

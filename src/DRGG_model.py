@@ -2,11 +2,27 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import logging
+
+
+from logger.my_logger import CustomFormatter
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+ch.setFormatter(CustomFormatter())
+logger.addHandler(ch)
 
 class Backbone(nn.Module):
     """Feature extractor backbone, typically a CNN like ResNet."""
     def __init__(self, output_dim=256):
         super().__init__()
+        #the paper uses internImage as the backbone
         self.cnn = models.resnet18(pretrained=True)
         self.cnn.fc = nn.Identity()  # Remove classification head
         self.fc = nn.Linear(512, output_dim)
@@ -76,19 +92,52 @@ class RelationHeads(nn.Module):
         self.concat_layer = nn.Linear(2 * hidden_dim, output_dim)
 
     def forward(self, x):
-        x_pooled1 = self.pool1(x.transpose(1, 2)).squeeze(-1)
-        d1 = self.mlp1(x_pooled1)
-        d1 = self.upsample1(d1.unsqueeze(-1)).squeeze(-1)
-        d1 = self.mlp1_out(d1)
+        # x shape: (batch_size, seq_len, input_dim) -> (1, 100, 256)
+        batch_size, seq_len, input_dim = x.shape
+        logger.debug(f"Input shape: {x.shape}")
 
-        x_pooled2 = self.pool2(x.transpose(1, 2)).squeeze(-1)
-        d2 = self.mlp2(x_pooled2)
-        d2 = self.upsample2(d2.unsqueeze(-1)).squeeze(-1)
-        d2 = self.mlp2_out(d2)
+        # First branch
+        x_pooled1 = self.pool1(x.transpose(1, 2)).squeeze(-1)  # (batch_size, input_dim)
+        logger.debug(f"Pooled x shape: {x_pooled1.shape}")
+        d1 = self.mlp1(x_pooled1)  # (batch_size, hidden_dim)
+        logger.debug(f"MLP1 output shape: {d1.shape}")
+        d1 = self.upsample1(d1.unsqueeze(-1)).squeeze(-1)  # (batch_size, hidden_dim)
+        logger.debug(f"Upsampled d1 shape: {d1.shape}")
+        d1 = self.mlp1_out(d1)  # (batch_size, hidden_dim)
+        logger.debug(f"MLP1_out output shape: {d1.shape}")
 
-        # Concatenation and final prediction
-        d_concat = torch.cat([d1, d2], dim=-1)
-        return self.concat_layer(d_concat)
+        # Second branch
+        x_pooled2 = self.pool2(x.transpose(1, 2)).squeeze(-1)  # (batch_size, input_dim)
+        d2 = self.mlp2(x_pooled2)  # (batch_size, hidden_dim)
+        d2 = self.upsample2(d2.unsqueeze(-1)).squeeze(-1)  # (batch_size, hidden_dim)
+        d2 = self.mlp2_out(d2)  # (batch_size, hidden_dim)
+
+        # Expand to match sequence length (seq_len)
+        d1 = d1.unsqueeze(1).expand(-1, seq_len, -1)  # (batch_size, seq_len, hidden_dim)
+        d2 = d2.unsqueeze(1).expand(-1, seq_len, -1)  # (batch_size, seq_len, hidden_dim)
+
+        # Concatenate along the feature dimension
+        d_concat = torch.cat([d1, d2], dim=-1)  # (batch_size, seq_len, 2 * hidden_dim)
+
+        # Final linear layer maps to output_dim (5)
+        out = self.concat_layer(d_concat)  # (batch_size, seq_len, output_dim)
+
+        return out  # (batch_size, seq_len, output_dim)
+
+    #def forward(self, x):
+    #    x_pooled1 = self.pool1(x.transpose(1, 2)).squeeze(-1)
+    #    d1 = self.mlp1(x_pooled1)
+    #    d1 = self.upsample1(d1.unsqueeze(-1)).squeeze(-1)
+    #    d1 = self.mlp1_out(d1)
+
+    #    x_pooled2 = self.pool2(x.transpose(1, 2)).squeeze(-1)
+    #    d2 = self.mlp2(x_pooled2)
+    #    d2 = self.upsample2(d2.unsqueeze(-1)).squeeze(-1)
+    #    d2 = self.mlp2_out(d2)
+
+    #    # Concatenation and final prediction
+    #    d_concat = torch.cat([d1, d2], dim=-1)
+    #    return self.concat_layer(d_concat)
 
 class RelationAggregator(nn.Module):
     """Weighted aggregation of Relation Heads' outputs."""
@@ -131,7 +180,11 @@ class DRGGModel(nn.Module):
         decoder_outputs = self.decoder(self.object_queries, encoded_features)
 
         # Apply Relation Heads to each decoder output
-        relation_outputs = [self.relation_heads(output) for output in decoder_outputs]
+        #relation_outputs = [self.relation_heads(output) for output in decoder_outputs]
+        #for i, output in enumerate(decoder_outputs):
+        #    logger.info(f"Decoder output {i} shape: {output.shape}")
+        relation_outputs = [self.relation_heads(output.permute(1, 0, 2)) for output in decoder_outputs]
+        #relation_outputs = [self.relation_heads(output.transpose(0, 1)) for output in decoder_outputs]
 
         # Weighted Aggregation of relation head outputs
         aggregated_relations = self.aggregator(relation_outputs)
@@ -146,5 +199,5 @@ if __name__ == '__main__':
     object_queries = torch.randn(5, 1, 256)  # Dummy object queries
 
     model = DRGGModel()
-    obj_pred, rel_pred = model(image, object_queries)
+    obj_pred, rel_pred = model(image)
     print(obj_pred.shape, rel_pred.shape)

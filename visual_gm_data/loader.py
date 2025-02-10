@@ -7,7 +7,7 @@ import glob
 import ijson
 import random
 import logging
-from logger.my_logger import CustomFormatter
+from ..logger.my_logger import CustomFormatter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -24,10 +24,10 @@ class VisualGenomeDataset(IterableDataset):
             self.obj_file = 'data_downloaded_manually/objects.json'
             self.rel_file = 'data_downloaded_manually/relationships.json'
             self.img_files = sorted(glob.glob(img_dirs[0] + '/*.jpg')) + sorted(glob.glob(img_dirs[1] + '/*.jpg'))
+            self.img_map = {img.split("/")[-1].split(".")[0]: img for img in self.img_files}  # Fast lookup
             self.image_size = img_size
             self.shuffle = shuffle
             self.transform = transforms.Compose([
-                transforms.Resize(self.image_size),
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
@@ -44,28 +44,20 @@ class VisualGenomeDataset(IterableDataset):
         obj_iter = self.parse_json_stream(self.obj_file)
         rel_iter = self.parse_json_stream(self.rel_file)
         
-        # If shuffling is enabled, load everything into memory first (limited by dataset size)
         if self.shuffle:
-            obj_list = list(obj_iter)
-            rel_list = list(rel_iter)
-            combined = list(zip(obj_list, rel_list))
-            random.shuffle(combined)
-            obj_iter, rel_iter = zip(*combined)
-            obj_iter = iter(obj_iter)
-            rel_iter = iter(rel_iter)
-
+            obj_iter = iter(random.sample(list(obj_iter), k=10000))  # Sample a subset
+        
         for obj_item, rel_item in zip(obj_iter, rel_iter):
-            logger.info(f"obj_item: {len(obj_item)}")
             image_id = obj_item.get("image_id")
-            img_path = next((img for img in self.img_files if str(image_id) in img), None)
+            img_path = self.img_map.get(str(image_id), None)
 
             if img_path:
                 try:
                     image = Image.open(img_path).convert('RGB')
                     image = self.transform(image)
                 except Exception as e:
-                    logger.warning(f"Error loading image {img_path}: {e}")
-                    continue  # Skip this entry if image loading fails
+                    logger.error(f"Error loading image {img_path}: {e}")
+                    continue
 
                 yield {
                     "image_id": image_id,
@@ -73,8 +65,6 @@ class VisualGenomeDataset(IterableDataset):
                     "relationships": rel_item.get("relationships", []),
                     "image": image,
                 }
-            else:
-                logger.warning(f"Image file for image_id {image_id} not found.")
 
 
 def pad_collate_fn(batch):
